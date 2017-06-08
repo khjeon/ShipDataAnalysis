@@ -1,0 +1,22 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+   
+    "editor.quickSuggestions": true,
+    // Controls if suggestions should be accepted with "Enter" - in addition to "Tab". Helps to avoid ambiguity between inserting new lines and accepting suggestions.
+    "editor.acceptSuggestionOnEnter": true,
+    // Controls the delay in ms after which quick suggestions will show up.
+    "editor.quickSuggestionsDelay": 10,
+    // Enable word based suggestions
+    "editor.wordBasedSuggestions": true,
+    "python.linting.enabled": true,
+    "python.pythonPath": "C:/Users/lab021/Anaconda3/envs/tensorflow/python",
+    "python.autoComplete.extraPaths": [
+        "C:/Users/lab021/Anaconda3/envs/tensorflow/lib/",
+        "C:/Users/lab021/Anaconda3/envs/tensorflow/lib/site-packages/",
+        "C:/Program Files (x86)/Google/google_appengine",
+        "C:/Program Files (x86)/Google/google_appengine/lib"
+    ],
+"python.promptToInstallJupyter": false,
+"python.linting.pylintEnabled": false,
+"editor.minimap.enabled": true
+}
