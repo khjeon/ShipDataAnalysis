@@ -26,6 +26,29 @@ from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn import ensemble
 import pymssql
 
+
+def DataQuery(callSign, startDate, endDate, averaging, dataCount, QueryData, isShuffle, features, label):
+    # # 읽어본 데이터 배열 만들기
+    _dataCount = dataCount * (averaging == 0 and 1 or averaging * 6)  
+    _data = sd.shipDataQuery(callSign, startDate, endDate, dataCount, QueryData, isShuffle)
+    _data = _data.dropna(axis=0)
+    _data = _data[(_data['SPEED_VG'] > 3) & (_data['SPEED_VG'] < 20) \
+    & (_data['SPEED_LW'] > 3) & (_data['SPEED_LW'] < 20) & (_data['SHAFT_REV'] > 10) & (_data['SHAFT_REV'] < 100) \
+    & (_data['SLIP'] > -50) & (_data['SLIP'] < 50) & (_data['DRAFT_FORE'] > 4) & (_data['DRAFT_FORE'] < 12) \
+    & (_data['DRAFT_AFT'] > 4) & (_data['DRAFT_AFT'] < 12) & (_data['REL_WIND_DIR'] >= 0) & (_data['REL_WIND_DIR'] <= 360) \
+    & (_data['REL_WIND_SPEED'] > -200) & (_data['REL_WIND_SPEED'] < 200) & (_data['RUDDER_ANGLE'] > -5) & (_data['RUDDER_ANGLE'] < 5) \
+    & (_data['BHP_BY_FOC'] > 1000) & (_data['BHP_BY_FOC'] < 30000) & (_data['SST'] > 0) & (_data['SST'] < 40) &  (_data['UGRD'] > -10) & (_data['UGRD'] < 10) &  (_data['VGRD'] > -10) & (_data['VGRD'] < 10)]
+    # data = data.loc[:,['SPEED_VG', 'SPEED_LW', 'SLIP', 'DRAFT_FORE', 'DRAFT_AFT', 'REL_WIND_DIR', 'REL_WIND_SPEED', 'RUDDER_ANGLE']]
+    if  averaging > 0 :
+        _data = _data.resample(rule=str(averaging)+'min', on='TIME_STAMP').mean()
+    if  averaging == 0 :
+        _data = _data.drop('TIME_STAMP', axis=1)
+    _data = _data.dropna(axis=0)
+    xData = np.array(_data.loc[:,features])
+    yData = np.array(_data.loc[:,label])
+    return xData, yData
+
+
 def BasicData(callSign):
     conn = pymssql.connect(server='218.39.195.13:21000', user='sa', password='@120bal@', database='SHIP_DB_EARTH')
     item1 =  'seatrialSpeedToPowerAtBallast'
@@ -50,7 +73,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 #데이터 관련 입력 파라미터 설정
-averaging = 4 # 시간 이동평균 min 시간 설정
+averaging = 10 # 시간 이동평균 min 시간 설정
 trainCount = 8000000
 testCount = 9800000
 isTrainShuffle = 0 # 0 : timeseries, 1 : 셔플
@@ -60,83 +83,33 @@ kalmansmooth = 1.5
 normalization = 1 # 0 : 정규화미적용 , 1: 적용
 solver = 0 # 0 : ann, 1 : gbt
 
-
-callSign = "3ewb4"
-Features = "[TIME_STAMP], [SLIP], [SPEED_VG]"
-# Features = "[TIME_STAMP], [SLIP], [SPEED_VG], [DRAFT_FORE], [DRAFT_AFT], [REL_WIND_DIR], [REL_WIND_SPEED], [RUDDER_ANGLE], [SHIP_HEADING]"
-Label = "[TIME_STAMP],[BHP_BY_FOC]"
-startTrainDate = '2017-02-03'
-endTrainDate = '2017-05-10'
-startTestDate = '2016-12-17'
-endTestDate = '2017-01-18'
+callSign = "3ffb8"
+# Features = ['SPEED_VG','SLIP', 'DRAFT_AFT', 'REL_WIND_DIR', 'REL_WIND_SPEED', 'RUDDER_ANGLE', 'SHIP_HEADING', 'SST', 'UGRD', 'VGRD']
+Features = ['SPEED_VG','SLIP']
+Label = ['BHP_BY_FOC']
+startTrainDate = '2016-01-01'
+endTrainDate = '2016-06-01'
+startTestDate = '2016-06-02'
+endTestDate = '2016-11-01'
 saveTime = datetime.datetime.now().strftime('%Y%m%d_%H%M')
-
+queryData = "[TIME_STAMP], [SHAFT_POWER], [BHP_BY_FOC], [SPEED_LW],\
+    [REL_WIND_DIR], [REL_WIND_SPEED], [SPEED_VG], [SHIP_HEADING], [SHAFT_REV], [DRAFT_FORE], [DRAFT_AFT], [WATER_DEPTH], [RUDDER_ANGLE], [SST],\
+    [SLIP],[UGRD], [VGRD]"
 
 # # 읽어본 데이터 배열 만들기
 trainCount = trainCount * (averaging == 0 and 1 or averaging * 6)  
 testCount = testCount * (averaging == 0 and 1 or averaging * 6)  
-x_train_data = sd.shipDataQuery(callSign, startTrainDate, endTrainDate, trainCount, Features, isTrainShuffle)
-y_train_data = sd.shipDataQuery(callSign, startTrainDate, endTrainDate, trainCount, Label, isTrainShuffle)
-x_test_data = sd.shipDataQuery(callSign, startTestDate, endTestDate, testCount, Features, isTestShuffle)
-y_test_data = sd.shipDataQuery(callSign, startTestDate, endTestDate, testCount, Label, isTestShuffle)
+# x_train_data = sd.shipDataQuery(callSign, startTrainDate, endTrainDate, trainCount, Features, isTrainShuffle)
+# y_train_data = sd.shipDataQuery(callSign, startTrainDate, endTrainDate, trainCount, Label, isTrainShuffle)
+# x_test_data = sd.shipDataQuery(callSign, startTestDate, endTestDate, testCount, Features, isTestShuffle)
+# y_test_data = sd.shipDataQuery(callSign, startTestDate, endTestDate, testCount, Label, isTestShuffle)
 
 
-if  averaging > 0 :
-    x_train_data = x_train_data.resample(rule=str(averaging)+'min', on='TIME_STAMP').mean()
-    y_train_data = y_train_data.resample(rule=str(averaging)+'min', on='TIME_STAMP').mean()
-    x_test_data = x_test_data.resample(rule=str(averaging)+'min', on='TIME_STAMP').mean()
-    y_test_data = y_test_data.resample(rule=str(averaging)+'min', on='TIME_STAMP').mean()
-    x_train_data = x_train_data.dropna(axis=0)
-    y_train_data = y_train_data.dropna(axis=0)
-    x_test_data = x_test_data.dropna(axis=0)
-    y_test_data = y_test_data.dropna(axis=0)
+x_train_data, y_train_data = DataQuery(callSign, startTrainDate, endTrainDate, averaging, trainCount, queryData, isTrainShuffle, Features,  Label)
+x_test_data, y_test_data = DataQuery(callSign, startTestDate, endTestDate, averaging, testCount, queryData, isTrainShuffle, Features,  Label)
 
-if  averaging == 0 :
-    x_train_data = x_train_data.drop('TIME_STAMP', axis=1)
-    y_train_data = y_train_data.drop('TIME_STAMP', axis=1)
-    x_test_data = x_test_data.drop('TIME_STAMP', axis=1)
-    y_test_data = y_test_data.drop('TIME_STAMP', axis=1)
 
-x_train_data = np.array(x_train_data)
-y_train_data = np.array(y_train_data)
-x_test_data = np.array(x_test_data)
-y_test_data = np.array(y_test_data)
-
-print("Data Loading Complete")
-# 칼만 필터 observation_covariance = 1(값을 올리면 smooth를 강하게), transition_covariance = 1(값을 올리면 원래 센서 값 형태를 강하게) 
-x_train_data_init=[]
-x_test_data_init=[]
-
-for step in range(x_train_data.shape[1]):
-    x_train_data_init = np.append(x_train_data_init, x_train_data[0][step])
-    x_test_data_init = np.append(x_test_data_init, x_test_data[0][step])
-
-if  kalmanfilter == 1 :
-    kf = KalmanFilter(initial_state_mean=x_train_data_init, n_dim_obs=x_train_data.shape[1], observation_covariance=np.eye(x_train_data.shape[1])*kalmansmooth, transition_covariance=np.eye(x_train_data.shape[1]))
-    x_train_data_kalman = kf.smooth(x_train_data)[0]
-
-    kf = KalmanFilter(initial_state_mean=y_train_data[0], n_dim_obs=1, observation_covariance=np.eye(1)*kalmansmooth, transition_covariance=np.eye(1) )
-    y_train_data_kalman = kf.smooth(y_train_data)[0]
-
-    kf = KalmanFilter(initial_state_mean=x_test_data_init, n_dim_obs=x_test_data.shape[1], observation_covariance=np.eye(x_test_data.shape[1])*kalmansmooth, transition_covariance=np.eye(x_test_data.shape[1]))
-    x_test_data_kalman = kf.smooth(x_test_data)[0]
-
-    kf = KalmanFilter(initial_state_mean=y_test_data[0], n_dim_obs=1, observation_covariance=np.eye(1)*kalmansmooth, transition_covariance=np.eye(1) )
-    y_test_data_kalman = kf.smooth(y_test_data)[0]
-
-    # garo = int(trainCount / 15) 
-    # x = np.array(range(0, x_train_data.shape[0])) 
-    # fig = plt.figure(figsize=(garo,7))
-    # plt.plot(x, x_train_data[:,1], 'b-')
-    # plt.plot(x, x_train_data_kalman[:,1], 'r-')
-    # plt.show()
-
-    x_train_data = x_train_data_kalman
-    y_train_data = y_train_data_kalman
-    x_test_data = x_test_data_kalman
-    y_test_data = y_test_data_kalman
-
-print("Kalmanfilter Complete")
+print(x_train_data)
 
 # 데이터 정규화
 
@@ -152,7 +125,7 @@ if normalization == 1 :
 print("Normalization Complete")
 
 if  solver == 0 :
-    NHIDDEN = 6
+    NHIDDEN = 512
     STDEV = 0.5
     config = tf.ConfigProto(device_count = {'gpu': 0})
 
@@ -160,6 +133,7 @@ if  solver == 0 :
     # ANN network 정의
     X = tf.placeholder(tf.float32, shape = [None,x_train_data.shape[1]], name = 'features')
     Y = tf.placeholder(tf.float32, shape = [None, 1], name = 'label')
+    checknan = tf.placeholder(tf.float32, shape = [None, 1], name = 'label')
 
     W = {
         "l1": tf.Variable(tf.random_normal([x_train_data.shape[1],NHIDDEN], stddev=STDEV, dtype=tf.float32)),
@@ -175,6 +149,7 @@ if  solver == 0 :
         return tf.matmul(l1, _W['l2']) + _b['l2']
 
     hypothesis = mlp(X, W, b)
+
     cost = tf.reduce_mean(tf.square(hypothesis - Y))
 
     if normalization == 1:
@@ -182,7 +157,7 @@ if  solver == 0 :
         training_epochs = 50000
 
     if normalization == 0:
-        learning_rate = 1e-4
+        learning_rate = 0.1
         training_epochs = 50000
 
 
@@ -213,13 +188,22 @@ if  solver == 0 :
         # 학습 결과 확인
         with tf.name_scope("accuracy"):
             if normalization == 1:
-                x_train_data[:,0] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*10)[0]
-                # x_train_data[:,4:7] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*0)[0]
+                x_train_data[:,1] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*3)[1]
+                # x_train_data[:,4] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*0)[4]
+                # x_train_data[:,5] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*0)[5]
+                # x_train_data[:,6] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*0)[6]
+                # x_train_data[:,7] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*0)[7]
+                # x_train_data[:,8] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*0)[8]
             
+
             
             if normalization == 0:
-                x_train_data[:,0] =  3
-                # x_train_data[:,4:7] = 0
+                x_train_data[:,1] = 3
+                # x_train_data[:,4] = 0
+                # x_train_data[:,5] = 0
+                # x_train_data[:,6] = 0
+                # x_train_data[:,7] = 0
+                # x_train_data[:,8] = 0
             
             y_test_pred = np.array(np.transpose(sess.run(hypothesis, feed_dict={X: x_test_data})).reshape(-1),dtype='float64')
             y_train_pred = np.array(np.transpose(sess.run(hypothesis, feed_dict={X: x_train_data})).reshape(-1),dtype='float64')
@@ -254,12 +238,13 @@ if  solver == 1 :
     
 
     if normalization == 1:
-        x_train_data[:,0] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*10)[0]
-        # x_train_data[:,4:7] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*0)[0]
-            
+        print("?", np.ones(x_train_data.shape[1])*3) 
+        x_train_data[:,1] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*3)[1]
+        # x_train_data[:,4:9] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*0)[0]
+        # x_train_data[:,4:9] =  robust_scaler1.transform(np.ones(x_train_data.shape[1])*0)[0]
             
     if normalization == 0:
-        x_train_data[:,0] =  3
+        x_train_data[:,1] =  3
         # x_train_data[:,4:7] = 0
 
     y_test_pred = clf.predict(x_test_data)
@@ -291,7 +276,7 @@ basic = BasicData(callSign)
 
 
 
-x_trainCurve = np.array(x_train_data[:,1],dtype='float64')
+x_trainCurve = np.array(x_train_data[:,0],dtype='float64')
 y_trainCurve = np.array(y_train_data[:,0],dtype='float64')
 param_firstData = curve_fit(fit_func, x_trainCurve, y_trainCurve)
 param_firstData2 = curve_fit(fit_func, x_trainCurve, y_train_pred)
@@ -316,6 +301,7 @@ plt.plot(x, laden, color="green")
 plt.title(callSign +" / " + startTrainDate + " ~ " + endTrainDate + " / r: " + str(round(r2,2)) + " / rmse:" + str(round(rmse,2)) + " / y = "+str(round(param_firstData2[0][0],2)) + "x^"+ str(round(param_firstData2[0][1],2)), color ='blue')
 plt.xlabel('SPEED_VG', color='red')
 plt.ylabel('SHAFT_POWER', color='red')
-plt.axis([6,18,0,15000])
+plt.axis([4,18,0,15000])
 plt.grid(True)
+gs.save("./result/img/ann/"+saveTime+"/"+callSign.upper()+"2", ext="png", close=False, verbose=True)
 plt.show()

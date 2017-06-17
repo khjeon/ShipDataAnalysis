@@ -44,7 +44,7 @@ def saveGraphANN(callSign, graphMode, testFeatures, testLabel, y_hat, trainBegin
     plt.ylabel("SPEED(Kn) & DRAFT(M)")
     plt.tick_params(axis="y")
     # plt.plot(testFeatures[:,1], 'g-', label="rpm")
-    plt.plot(testFeatures[:,1], 'm-', label="SOG")
+    plt.plot(testFeatures[:,0], 'm-', label="SOG")
     # print(testFeatures)
     plt.legend(loc='upper right', frameon=True)
     plt.ylim(0,50)

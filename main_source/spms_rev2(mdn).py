@@ -6,6 +6,7 @@ linear regeression ANN 선박성능학습 (잘됨)
 @author : lab021 / 이상봉
 """
 import math
+import copy
 import scipy.io
 import numpy as np
 import matplotlib.pyplot as plt
@@ -46,6 +47,13 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+
+# 시각화
+def fit_func(x, a, b):
+    return a * pow(x, b)
+
+
+
 # train 데이터 set 만들기
 def BasicData(callSign):
     conn = pymssql.connect(server='218.39.195.13:21000', user='sa', password='@120bal@', database='SHIP_DB_EARTH')
@@ -76,19 +84,16 @@ tf_ru = tf.random_uniform
 tf_relu = tf.nn.relu
 tf_tanh = tf.nn.tanh
 
-def plot3_2(a1, b1, c1, a2, b2, c2, speed, powerBallast, powerLaden, GRAPHCOUNT, l1="", l2="", mark=".", col1="k", col2="r", title=""):
+def plot3_2(a1, b1, c1, a2, b2, c2, performance, speed, powerBallast, powerLaden, GRAPHCOUNT, l1="", l2="", mark=".", col1="k", col2="r", title="", xaxis="", yaxis="", zaxis=""):
     
-    rpm = np.zeros(len(powerBallast))
-    print(a1)
-    print(powerBallast)
-
+    rpm = np.ones(len(powerBallast)) * np.mean(b1)
 
     ballast = go.Scatter3d(
-        x=rpm, y=speed, z=powerBallast, mode='markers', name = 'ballast', marker=dict(size=3, opacity=0.8)
+        x=speed, y=rpm, z=powerBallast, mode='markers', name = 'ballast', marker=dict(size=3, opacity=0.8)
     )
 
     laden = go.Scatter3d(
-        x=rpm, y=speed, z=powerLaden, mode='markers', name = 'laden', marker=dict(size=3, opacity=0.8)
+        x=speed, y=rpm, z=powerLaden, mode='markers', name = 'laden', marker=dict(size=3, opacity=0.8)
     )
     
     predict = go.Scatter3d(
@@ -99,10 +104,20 @@ def plot3_2(a1, b1, c1, a2, b2, c2, speed, powerBallast, powerLaden, GRAPHCOUNT,
         x=a2, y=b2, z=c2, mode='markers', name = l2,  marker=dict(size=2, opacity=0.8)
     )
 
-    data = [predict, train, ballast, laden]
+    result = go.Scatter3d(
+        x=speed, y=rpm, z=performance, mode='markers', name = "result",  marker=dict(size=4, opacity=0.8)
+    )
 
-    plotly.offline.plot({"data":data,"layout": go.Layout(legend=dict(orientation="h"),title=title, scene = dict(xaxis=dict(title="RPM"), yaxis=dict(title="SPEED_VG"),zaxis=dict(title="POWER(KW)", range = [0,20000])))
-    })
+    # print("speed:" ,speed)
+    # print("performance:", performance)
+    # exit()
+
+    data = [predict, train, ballast, laden, result]
+    # plotly.offline.plot({"figure", filename ='my-graph.html')
+
+
+    plotly.offline.plot({"data":data,  "layout": go.Layout(legend=dict(orientation="h"), title=title, scene = dict(xaxis=dict(title=xaxis, nticks=28,range = [6,20]), yaxis=dict(title=yaxis),zaxis=dict(title=zaxis, range = [0,20000])))
+    },filename ='./result/'+str(GRAPHCOUNT)+'.html')
   
 
 
@@ -113,8 +128,8 @@ class hmdn_class(object):
      
         self.name = _name
         self.sess = opt['sess']
-        self.xdata = opt['xTrainData']  # TRAINING DATA FEATURE
-        self.ydata = opt['yTrainData']  # TRAINING DATA LABEL
+        self.xTraindata = opt['xTrainData']  # TRAINING DATA FEATURE
+        self.yTraindata = opt['yTrainData']  # TRAINING DATA LABEL
         self.xTestData = opt['xTestData']  # TRAINING DATA FEATURE
         self.yTestData = opt['yTestData']  # TRAINING DATA LABEL
         self.ballastB = opt['ballastB']
@@ -124,9 +139,9 @@ class hmdn_class(object):
         
 
 
-        self.ndata = self.xdata.shape[0]  # TRAINING DATA FEATURE 종류수
-        self.dimx = self.xdata.shape[1]  # TRAINING DATA FEATURE 갯수
-        self.dimy = self.ydata.shape[1]  # TRAINING DATA LABEL 갯수
+        self.ndata = self.xTraindata.shape[0]  # TRAINING DATA FEATURE 종류수
+        self.dimx = self.xTraindata.shape[1]  # TRAINING DATA FEATURE 갯수
+        self.dimy = self.yTraindata.shape[1]  # TRAINING DATA LABEL 갯수
         self.kmix = opt['kmix']  # Mixture 갯수
         self.nhid1 = opt['nhid1']  # 은닉1층 노드 수
         self.nhid2 = opt['nhid2']  # 은닉2층 노드 수
@@ -147,7 +162,7 @@ class hmdn_class(object):
         # SAVE PATH
         self.savename = ("./weights_%s.mat" % (self.name))
         # GET RANGE OF THE DATA
-        self.ymin, self.ymax = np.min(self.ydata), np.max(self.ydata)
+        self.ymin, self.ymax = np.min(self.yTraindata), np.max(self.yTraindata)
         # BUILD MODEL
         self.build_model()
         # OPTIMIZER
@@ -310,14 +325,14 @@ class hmdn_class(object):
         # FIRST, SHUFFLE DATA
         # np.random.seed(0)
         # randpermlist = np.random.permutation(self.ndata)
-        # self.xdata = self.xdata[randpermlist, :]
+        # self.xTraindata = self.xTraindata[randpermlist, :]
         # self.ydata = self.ydata[randpermlist, :]
         # THEN, SEPARATE - Train Data Set에서 95%만 짜름
         # self.ntrain = np.int(self.ndata * 0.8)
 
         self.ntrain = self.ndata
-        self.trainx = self.xdata
-        self.trainy = self.ydata
+        self.trainx = self.xTraindata
+        self.trainy = self.yTraindata
         self.testx = self.xTestData
         self.testy = self.yTestData
         self.ntest = self.testx.shape[0]
@@ -327,7 +342,7 @@ class hmdn_class(object):
         NBATCH = self.nbatch
         NITER = int(self.ntrain / NBATCH)
         PRINTEVERY = NEPOCH // 10
-        PLOTEVERY = NEPOCH // 4
+        PLOTEVERY = NEPOCH // 10
         GRAPHCOUNT = 0
         # TRAIN
         mses_train = np.zeros(NEPOCH)
@@ -369,8 +384,8 @@ class hmdn_class(object):
             hmdn_out_val = self.sess.run(self.hmdn_out, feed_dict=feeds)
             hmdn_sample_val = self.hmdn_sample(hmdn_out_val)
             
-            pred_ydata_inv = scaler_yTestData.inverse_transform(hmdn_sample_val)
-            ydata_inv = scaler_yTestData.inverse_transform(self.testy)
+            pred_ydata_inv = scaler_yData.inverse_transform(hmdn_sample_val)
+            ydata_inv = scaler_yData.inverse_transform(self.testy)
         
             r2_test = r2_score(pred_ydata_inv, ydata_inv)
             rmse_test = sqrt(mean_squared_error(pred_ydata_inv, ydata_inv))
@@ -381,12 +396,15 @@ class hmdn_class(object):
             hmdn_out_val = self.sess.run(self.hmdn_out, feed_dict=feeds)
             hmdn_sample_val = self.hmdn_sample(hmdn_out_val)
 
-            pred_ydata_inv = scaler_yTrainData.inverse_transform(hmdn_sample_val)
-            ydata_inv = scaler_yTrainData.inverse_transform(self.trainy)
+            pred_ydata_inv = scaler_yData.inverse_transform(hmdn_sample_val)
+            ydata_inv = scaler_yData.inverse_transform(self.trainy)
 
             r2_train = r2_score(pred_ydata_inv, ydata_inv)
             rmse_train = sqrt(mean_squared_error(pred_ydata_inv, ydata_inv))
             mse_train = ((ydata_inv - pred_ydata_inv) ** 2).mean(axis=None)
+
+
+
 
 
             # SAVE
@@ -421,29 +439,60 @@ class hmdn_class(object):
         plt.plot(mses_test)
         plt.legend(['Train', 'Test'])
         plt.title('MSE')
+        plt.show()
 
     # PLOT RECON
     def plot_recon_hmdn(self, GRAPHCOUNT):
+        # print("xTraindata" , self.xTraindata.shape)
+
         GRAPHCOUNT = GRAPHCOUNT
-        feeds = {self.x: self.xdata, self.kp: 1.0}
-        hmdn_out_val = self.sess.run(self.hmdn_out, feed_dict=feeds)
-        pred_ydata = self.hmdn_sample(hmdn_out_val)
+        feedTrain = {self.x: self.xTraindata, self.kp: 1.0}
+        hmdn_out_val_train = self.sess.run(self.hmdn_out, feed_dict=feedTrain)
+        pred_ydata_train = self.hmdn_sample(hmdn_out_val_train)
+        yTrainData_inv2 = scaler_yData.inverse_transform(self.yTraindata)
+        pred_yTrainData_inv2 = scaler_yData.inverse_transform(pred_ydata_train)
 
-        ydata_inv2 = scaler_yTrainData.inverse_transform(self.ydata)
-        pred_ydata_inv2 = scaler_yTrainData.inverse_transform(pred_ydata)
-        xdata_inv1 = scaler_xTrainData.inverse_transform(self.xdata)
-        mse_data = ((ydata_inv2 - pred_ydata_inv2) ** 2).mean(axis=None)
+        feedsTest = {self.x: self.xTestData, self.kp: 1.0}
+        hmdn_out_val_test = self.sess.run(self.hmdn_out, feed_dict=feedsTest)
+        pred_ydata_test = self.hmdn_sample(hmdn_out_val_test)
+        yTestData_inv2 = scaler_yData.inverse_transform(self.yTestData)
+        pred_yTestData_inv2 = scaler_yData.inverse_transform(pred_ydata_test)
+
+        xdata_inv1 = scaler_xData.inverse_transform(self.xTraindata)
+
+        x_result_data = copy.deepcopy(xdata_inv1)
+        x_result_data[:,1] =  3
+        # x_result_data[:,3] =  0
+        # x_result_data[:,4] =  0
+        # x_result_data[:,6] =  0
+
+        x_result_data = scaler_xData.transform(x_result_data)
+        feedResult = {self.x: x_result_data, self.kp: 1.0}
+        hmdn_out_val_result = self.sess.run(self.hmdn_out, feed_dict=feedResult)
+        pred_ydata_result = self.hmdn_sample(hmdn_out_val_result)
+        pred_yresultData_inv2 = scaler_yData.inverse_transform(pred_ydata_result)
+
+        x_trainCurve = np.array(xdata_inv1[:,0],dtype='float64')
+        y_trainCurve = np.array(pred_yresultData_inv2[:,0],dtype='float64')
+        x_range = range(60, 200)
+        x = np.array(x_range)/10 
         
-        r2 = r2_score(pred_ydata_inv2, ydata_inv2)
-        rmse = sqrt(mean_squared_error(pred_ydata_inv2, ydata_inv2))
-
+        
+        param_firstData = curve_fit(fit_func, x_trainCurve, y_trainCurve)
+        result = eval(str(param_firstData[0][0])+'*x**'+str(param_firstData[0][1]))
+      
+        # mse_data = ((yTestData_inv2 - pred_yTestData_inv2) ** 2).mean(axis=None)
+        r2Train = r2_score(pred_yTrainData_inv2, yTrainData_inv2)
+        r2Test = r2_score(pred_yTestData_inv2, yTestData_inv2)
+        rmseTrain = sqrt(mean_squared_error(pred_yTrainData_inv2, yTrainData_inv2))
+        rmseTest = sqrt(mean_squared_error(pred_yTestData_inv2, yTestData_inv2))
         speed = []
         powerBallast = []
         powerLaden = []
+        speedRange = (int(np.max(xdata_inv1[:, 0]) - np.min(xdata_inv1[:, 0]))+1)*10
 
-        speedRange = (int(np.max(xdata_inv1[:, 1]) - np.min(xdata_inv1[:, 1]))+1)*10
-        print(speedRange )
-        speenmin = round(np.min(xdata_inv1[:, 1]), 1)
+        speenmin = round(np.min(xdata_inv1[:, 0]), 1)
+        print("ssdfsd",speenmin)
 
         for i in range(speedRange):
             speed = np.append(speed, (speenmin + float(i) / 10))
@@ -464,7 +513,7 @@ class hmdn_class(object):
         if ndim > 2:
             ndim = 2
         for plot_dim in range(ndim):
-            plot3_2(xdata_inv1[:, 0], xdata_inv1[:, 1], ydata_inv2[:, plot_dim], xdata_inv1[:, 0], xdata_inv1[:, 1], pred_ydata_inv2[:, plot_dim], speed, powerBallast, powerLaden, GRAPHCOUNT, l1="Training Data", l2="Predicted Data", title=("[%s] kmix: [%d], dim: [%d], mse_data: [%.d], r2: [%.2f], rmse: [%d]" % (self.name, self.kmix, dim, mse_data, r2, rmse)))
+            plot3_2(xdata_inv1[:, 0], xdata_inv1[:, 1], yTestData_inv2[:, plot_dim], xdata_inv1[:, 0], xdata_inv1[:, 1], pred_yTestData_inv2[:, plot_dim],result, speed, powerBallast, powerLaden, GRAPHCOUNT, l1="Training Data", l2="Predicted Data", title=("[%s] kmix: [%d], dim: [%d], r2Train: [%.2f], r2Test: [%.2f],  rmseTrain: [%d], rmseTest: [%d]" % (self.name, self.kmix, dim, r2Train, r2Test, rmseTrain, rmseTest)), xaxis=data_opt['features'][0], yaxis = data_opt['features'][1], zaxis= data_opt['label'][0])
     # SAVE WEIGHTS
 
     def save_weights(self):
@@ -482,12 +531,12 @@ class hmdn_class(object):
         b_h2_s = self.sess.run(self.b['h2_s'])
         b_h2_e = self.sess.run(self.b['h2_e'])
         # SAMPLE TEST (XTEST->YPRED)
-        test_in = self.xdata[:10, :]
+        test_in = self.xTraindata[:10, :]
         feeds = {self.x: test_in, self.kp: 1.0}
         test_out = self.hmdn_sample(
             self.sess.run(self.hmdn_out, feed_dict=feeds))
         # OTHERS TO SAVE
-        xdata, ydata = self.xdata, self.ydata
+        xTraindata, yTraindata = self.xTraindata, self.yTraindata
         nhid1, nhid2 = self.nhid1, self.nhid2
         kmix = self.kmix
         dimx, dimy = self.dimx, self.dimy
@@ -501,7 +550,7 @@ class hmdn_class(object):
                                                'b_x_h1': b_x_h1, 'b_h1_h2': b_h1_h2, 'b_h2_p': b_h2_p,
                                                'b_h2_m': b_h2_m, 'b_h2_s': b_h2_s, 'b_h2_e': b_h2_e,
                                                'test_in': test_in, 'test_out': test_out,
-                                               'xdata': xdata, 'ydata': ydata,
+                                               'xTraindata': xTraindata, 'yTraindata': yTraindata,
                                                'nhid1': nhid1, 'nhid2': nhid2, 'kmix': kmix,
                                                'gain_p': gain_p, 'gain_s': gain_s, 'gain_e': gain_e,
                                                'hid1actv': hid1actv, 'hid2actv': hid2actv,
@@ -526,12 +575,12 @@ class hmdn_class(object):
         b_h2_s = self.sess.run(self.b['h2_s'])
         b_h2_e = self.sess.run(self.b['h2_e'])
         # SAMPLE TEST (XTEST->YPRED)
-        test_in = self.xdata[:10, :]
+        test_in = self.xTraindata[:10, :]
         feeds = {self.x: test_in, self.kp: 1.0}
         test_out = self.hmdn_sample(
             self.sess.run(self.hmdn_out, feed_dict=feeds))
         # OTHERS TO SAVE
-        xdata, ydata = self.xdata, self.ydata
+        xTraindata, yTraindata = self.xTraindata, self.yTraindata
         nhid1, nhid2 = self.nhid1, self.nhid2
         kmix = self.kmix
         dimx, dimy = self.dimx, self.dimy
@@ -546,7 +595,7 @@ class hmdn_class(object):
                                           'b_x_h1': b_x_h1, 'b_h1_h2': b_h1_h2, 'b_h2_p': b_h2_p,
                                           'b_h2_m': b_h2_m, 'b_h2_s': b_h2_s, 'b_h2_e': b_h2_e,
                                           'test_in': test_in, 'test_out': test_out,
-                                          'xdata': xdata, 'ydata': ydata,
+                                          'xTraindata': xTraindata, 'yTraindata': yTraindata,
                                           'nhid1': nhid1, 'nhid2': nhid2, 'kmix': kmix,
                                           'gain_p': gain_p, 'gain_s': gain_s, 'gain_e': gain_e,
                                           'hid1actv': hid1actv, 'hid2actv': hid2actv,
@@ -563,19 +612,19 @@ def DataQuery(callSign, startDate, endDate, averaging, dataCount, QueryData, isS
     _data = _data.dropna(axis=0)
     _data = _data[(_data['SPEED_VG'] > 3) & (_data['SPEED_VG'] < 20) \
     & (_data['SPEED_LW'] > 3) & (_data['SPEED_LW'] < 20) & (_data['SHAFT_REV'] > 10) & (_data['SHAFT_REV'] < 100) \
-    & (_data['SLIP'] > -50) & (_data['SLIP'] < 50) & (_data['DRAFT_FORE'] > 3) & (_data['DRAFT_FORE'] < 30) \
-    & (_data['DRAFT_AFT'] > 3) & (_data['DRAFT_AFT'] < 30) & (_data['REL_WIND_DIR'] >= 0) & (_data['REL_WIND_DIR'] <= 360) \
+    & (_data['SLIP'] > -50) & (_data['SLIP'] < 50) & (_data['DRAFT_FORE'] > 4) & (_data['DRAFT_FORE'] < 10) \
+    & (_data['DRAFT_AFT'] > 4) & (_data['DRAFT_AFT'] < 10) & (_data['REL_WIND_DIR'] >= 0) & (_data['REL_WIND_DIR'] <= 360) \
     & (_data['REL_WIND_SPEED'] > -200) & (_data['REL_WIND_SPEED'] < 200) & (_data['RUDDER_ANGLE'] > -5) & (_data['RUDDER_ANGLE'] < 5) \
-    & (_data['BHP_BY_FOC'] > 1000) & (_data['BHP_BY_FOC'] < 30000)]
+    & (_data['BHP_BY_FOC'] > 1000) & (_data['BHP_BY_FOC'] < 30000) & (_data['SST'] > 0) & (_data['SST'] < 40) &  (_data['UGRD'] > -10) & (_data['UGRD'] < 10) &  (_data['VGRD'] > -10) & (_data['VGRD'] < 10)]
     # data = data.loc[:,['SPEED_VG', 'SPEED_LW', 'SLIP', 'DRAFT_FORE', 'DRAFT_AFT', 'REL_WIND_DIR', 'REL_WIND_SPEED', 'RUDDER_ANGLE']]
     if  averaging > 0 :
         _data = _data.resample(rule=str(averaging)+'min', on='TIME_STAMP').mean()
     if  averaging == 0 :
         _data = _data.drop('TIME_STAMP', axis=1)
     _data = _data.dropna(axis=0)
-    xData = np.array(_data.loc[:,features])
-    yData = np.array(_data.loc[:,label])
-    return xData, yData
+    xTraindata = np.array(_data.loc[:,features])
+    yTraindata = np.array(_data.loc[:,label])
+    return xTraindata, yTraindata
 
 def Kmfilter(data, kalmanSmooth):
     # 칼만 필터 observation_covariance = 1(값을 올리면 smooth를 강하게), transition_covariance = 1(값을 올리면 원래 센서 값 형태를 강하게) 
@@ -599,7 +648,6 @@ def Kmfilter(data, kalmanSmooth):
 def Data_normalization(data):
     robust_scaler = RobustScaler()
     resultData = robust_scaler.fit_transform(data)
-    print("Normalization Complete")
     return resultData, robust_scaler
 
     
@@ -636,21 +684,21 @@ def plot2d():
 print("Start...")
 data_opt = {
     'callSign' : "3ewb4",
-    'startTrainDate' : '2016-05-18',
-    'endTrainDate' : '2016-10-17',
+    'startTrainDate' : '2016-05-20',
+    'endTrainDate' : '2016-11-23',
     'trainDataCount' : 80000000,
     'isTrainDataShuffle' : 0,
-    'startTestDate' : '2016-11-02',
-    'endTestDate' : '2017-02-28',
+    'startTestDate' : '2016-11-27',
+    'endTestDate' : '2017-02-19',
     'testDataCount' : 900000,
     'isTestDataShuffle' : 0,
     'queryData' : "[TIME_STAMP], [SHAFT_POWER], [BHP_BY_FOC], [SPEED_LW],\
-    [REL_WIND_DIR], [REL_WIND_SPEED], [SPEED_VG], [SHIP_HEADING], [SHAFT_REV], [DRAFT_FORE], [DRAFT_AFT], [WATER_DEPTH], [RUDDER_ANGLE], [SST],\
-    [SLIP]",
-    'downSampleing' : 4,
+    [REL_WIND_DIR], [REL_WIND_SPEED], [ABS_WIND_SPEED_ZERODEGREE], [SPEED_VG], [SHAFT_REV], [DRAFT_FORE], [DRAFT_AFT], [WATER_DEPTH], [RUDDER_ANGLE], [SST],\
+    [SLIP], [CURRNET_SPEED_REL],[VGRD],[UGRD],[HTSGW],[SWPER_SEQ1]",
+    'downSampleing' : 10,
     'kalmanfilter' : 0,
-    'normalization' : 1,
-    'features' : ['SLIP', 'SPEED_VG'],
+    'normalization' : 0,
+    'features' : ['SPEED_VG', 'SLIP'],
     'label' : ['BHP_BY_FOC']
 }
 
@@ -662,10 +710,11 @@ xTestData, yTestData = DataQuery(data_opt['callSign'], data_opt['startTestDate']
 # xTestData = Kmfilter(xTestData,1.5)
 # yTestData = Kmfilter(yTestData,1.5)
 
-xTrainData, scaler_xTrainData = Data_normalization(xTrainData)
-yTrainData, scaler_yTrainData = Data_normalization(yTrainData)
-xTestData, scaler_xTestData = Data_normalization(xTestData)
-yTestData, scaler_yTestData = Data_normalization(yTestData)
+xTrainData, scaler_xData = Data_normalization(xTrainData)
+yTrainData, scaler_yData = Data_normalization(yTrainData)
+xTestData = scaler_xData.transform(xTestData)
+yTestData = scaler_yData.transform(yTestData)
+
 
 
 xTrainData = np.array(xTrainData)
@@ -682,16 +731,16 @@ analysis_opt = {
     'xTestData' : xTestData,
     'yTestData' : yTestData,
     'kmix': 3,
-    'nhid1': 256,
-    'nhid2': 256,
+    'nhid1': 512,
+    'nhid2': 512,
     'hid1actv': 'relu',
     'hid2actv': 'relu',
     'var_actv': 'exp',  # exp / sigmoid
     'gain_p': 1,
     'gain_s': 5,
     'gain_e': 1,
-    'nepoch': 5000,
-    'nbatch': 1024,
+    'nepoch': 50000,
+    'nbatch': 512,
     'lrs': [2e-6, 1e-6, 1e-6],
     'wd_rate': 1e-9,  # WEIGHT DECAY RATE
     'poltype': 'Trajectory Prediction',
